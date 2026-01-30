@@ -1,0 +1,138 @@
+{
+  "$schema": "./skill-rules.schema.json",
+  "version": "1.0.0",
+  "description": "Skill activation rules for claude-code-base-infra",
+
+  "skills": {
+    "backend-dev-guidelines": {
+      "description": "Node.js/Next.js API routes, Supabase integration, server-side patterns",
+      "triggers": {
+        "prompt": [
+          "api", "route", "endpoint", "backend", "server",
+          "supabase", "database", "query", "mutation",
+          "authentication", "auth", "middleware",
+          "prisma", "orm", "schema", "migration"
+        ],
+        "files": [
+          "app/api/**/*",
+          "pages/api/**/*",
+          "lib/supabase/**/*",
+          "lib/db/**/*",
+          "services/**/*",
+          "middleware.ts",
+          "prisma/**/*"
+        ]
+      },
+      "enforcement": "suggest",
+      "priority": 1
+    },
+
+    "frontend-dev-guidelines": {
+      "description": "React/Next.js components, MUI styling, client-side patterns",
+      "triggers": {
+        "prompt": [
+          "component", "react", "ui", "frontend", "client",
+          "mui", "material", "theme", "style", "css",
+          "hook", "useState", "useEffect", "context",
+          "form", "validation", "responsive"
+        ],
+        "files": [
+          "app/**/*.tsx",
+          "components/**/*",
+          "hooks/**/*",
+          "contexts/**/*",
+          "styles/**/*",
+          "theme/**/*"
+        ]
+      },
+      "enforcement": "suggest",
+      "priority": 1
+    },
+
+    "add-skill": {
+      "description": "Create and manage skills, modular patterns, 500-line rule",
+      "triggers": {
+        "prompt": [
+          "add skill", "create skill", "new skill",
+          "help me to add skill", "refactor skill",
+          "modular", "skill template"
+        ],
+        "files": [
+          ".claude/skills/**/*",
+          "SKILL.md"
+        ]
+      },
+      "enforcement": "auto",
+      "priority": 0
+    },
+
+    "route-tester": {
+      "description": "API endpoint testing, integration tests, Supabase queries",
+      "triggers": {
+        "prompt": [
+          "test route", "test api", "test endpoint",
+          "integration test", "e2e test", "api test",
+          "curl", "postman", "request", "response"
+        ],
+        "files": [
+          "__tests__/api/**/*",
+          "tests/integration/**/*",
+          "*.test.ts",
+          "*.spec.ts"
+        ]
+      },
+      "enforcement": "suggest",
+      "priority": 2
+    },
+
+    "error-tracking": {
+      "description": "Error handling, logging, debugging, monitoring",
+      "triggers": {
+        "prompt": [
+          "error", "bug", "fix", "debug", "crash",
+          "exception", "log", "trace", "stack",
+          "sentry", "monitoring", "alert"
+        ],
+        "files": [
+          "lib/errors/**/*",
+          "lib/logging/**/*",
+          "sentry.*",
+          "*.error.ts"
+        ]
+      },
+      "enforcement": "suggest",
+      "priority": 2
+    },
+
+    "date-aware": {
+      "description": "Ensures accurate date/time usage for date-sensitive tasks",
+      "triggers": {
+        "prompt": [
+          "date-aware", "check date", "current date", "what year",
+          "documentation date", "changelog", "release notes",
+          "last updated", "timestamp", "current time"
+        ],
+        "files": [
+          "CHANGELOG.md",
+          "RELEASE*.md",
+          "docs/**/*"
+        ]
+      },
+      "enforcement": "suggest",
+      "priority": 2
+    }
+  },
+
+  "globalSettings": {
+    "maxSkillsPerPrompt": 3,
+    "defaultEnforcement": "suggest",
+    "showSkillSuggestions": true,
+    "logActivations": true
+  },
+
+  "enforcementLevels": {
+    "auto": "Automatically activate skill without user confirmation",
+    "suggest": "Suggest skill activation to user",
+    "manual": "Only activate when explicitly requested"
+  }
+}
