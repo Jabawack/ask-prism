@@ -56,3 +56,31 @@ export interface ParseDifference {
   parserB?: string;
   bbox?: BoundingBox;
 }
+
+// Processing event types for SSE progress updates
+export type ProcessingEventType =
+  | 'started'
+  | 'parsing'
+  | 'parsing_complete'
+  | 'chunking'
+  | 'chunking_complete'
+  | 'embedding'
+  | 'embedding_progress'
+  | 'storing'
+  | 'complete'
+  | 'error';
+
+export interface ProcessingEvent {
+  type: ProcessingEventType;
+  documentId: string;
+  timestamp: number;
+  message: string;
+  progress?: number; // 0-100 percentage
+  details?: {
+    pageCount?: number;
+    chunkCount?: number;
+    embeddedCount?: number;
+    totalChunks?: number;
+    error?: string;
+  };
+}

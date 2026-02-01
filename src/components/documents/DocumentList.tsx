@@ -2,15 +2,18 @@
 
 import { Document } from '@/lib/supabase/types';
 import { DocumentCard } from './DocumentCard';
+import type { DocumentProgress } from '@/hooks/useDocumentProgress';
 
 interface DocumentListProps {
   documents: Document[];
   onDelete?: (id: string) => void;
   selectedIds?: string[];
   onSelect?: (id: string) => void;
+  onView?: (doc: Document) => void;
+  progressMap?: Record<string, DocumentProgress>;
 }
 
-export function DocumentList({ documents, onDelete, selectedIds = [], onSelect }: DocumentListProps) {
+export function DocumentList({ documents, onDelete, selectedIds = [], onSelect, onView, progressMap = {} }: DocumentListProps) {
   if (documents.length === 0) {
     return (
       <div className="text-center py-8 text-gray-500">
@@ -29,6 +32,8 @@ export function DocumentList({ documents, onDelete, selectedIds = [], onSelect }
           onDelete={onDelete}
           isSelected={selectedIds.includes(doc.id)}
           onSelect={onSelect}
+          onView={onView ? () => onView(doc) : undefined}
+          progress={progressMap[doc.id]}
         />
       ))}
     </div>

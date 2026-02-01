@@ -308,6 +308,46 @@ interface HighlightArea {
 - [ ] Basic chat UI component (needs testing)
 - [ ] Fix any remaining PDF upload issues
 
+### Phase 2.5: Document Processing UX (COMPLETE)
+
+**Goal:** Real-time feedback during document processing with modern AI progress patterns.
+
+**Research-backed UI Pattern: Vertical Progress Stepper**
+- Vertical layout preferred for multi-step flows with context ([PatternFly](https://www.patternfly.org/components/progress-stepper/design-guidelines/))
+- 3-7 steps max, show current step prominently ([Eleken](https://www.eleken.co/blog-posts/stepper-ui-examples))
+- Long-running AI tasks need progress visibility, checkpoints ([Jakob Nielsen](https://jakobnielsenphd.substack.com/p/2026-predictions))
+
+**UI Design:**
+```
+┌─────────────────────────────────────────┐
+│  Processing: financial-report.pdf       │
+│                                         │
+│  ● Uploading              ✓ Complete    │
+│  │                                      │
+│  ● Parsing PDF            ✓ 12 pages    │
+│  │                                      │
+│  ◉ Creating chunks        → 45 chunks   │
+│  │  ████████░░ 80%                      │
+│  │                                      │
+│  ○ Generating embeddings  ○ Pending     │
+│  │                                      │
+│  ○ Saving to database     ○ Pending     │
+│                                         │
+│  [Cancel]                               │
+└─────────────────────────────────────────┘
+```
+
+**Tasks:**
+- [x] SSE endpoint for document progress (`/api/documents/[id]/progress`)
+- [x] Event bus for processor → SSE communication
+- [x] useDocumentProgress React hook
+- [x] **Vertical Progress Stepper component** (`src/components/documents/ProcessingStepper.tsx`)
+- [x] Progress panel/drawer (`src/components/documents/ProcessingDrawer.tsx`)
+- [x] PDF viewer component (`src/components/pdf/PDFViewer.tsx`)
+- [x] Document detail view (`src/components/documents/DocumentDetailView.tsx`)
+- [x] Chunks API endpoint (`/api/documents/[id]/chunks`)
+- [x] Chunk visualization with bbox overlay on PDF pages
+
 ### Phase 3: Optimization
 - [x] Query routing node
 - [x] Reranking with relevance scoring

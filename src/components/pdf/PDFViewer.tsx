@@ -12,14 +12,16 @@ pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/b
 interface Highlight {
   id: string;
   bbox: BoundingBox;
-  color?: string;
+  state?: 'selected' | 'hovered' | 'default';
 }
 
 interface PDFViewerProps {
   url: string;
   highlights?: Highlight[];
   activeHighlightId?: string | null;
+  hoveredHighlightId?: string | null;
   onHighlightClick?: (id: string) => void;
+  onHighlightHover?: (id: string | null) => void;
   className?: string;
 }
 
@@ -27,7 +29,9 @@ export function PDFViewer({
   url,
   highlights = [],
   activeHighlightId,
+  hoveredHighlightId,
   onHighlightClick,
+  onHighlightHover,
   className = '',
 }: PDFViewerProps) {
   const [numPages, setNumPages] = useState<number>(0);
@@ -84,52 +88,52 @@ export function PDFViewer({
 
   return (
     <div className={`flex flex-col h-full ${className}`}>
-      {/* Toolbar */}
-      <div className="flex items-center justify-between bg-gray-100 border-b px-4 py-2">
-        <div className="flex items-center space-x-2">
+      {/* Compact toolbar */}
+      <div className="flex items-center justify-between bg-gray-50 border-b px-3 py-1.5 text-sm">
+        <div className="flex items-center gap-1">
           <button
             onClick={handleZoomOut}
-            className="p-1 hover:bg-gray-200 rounded"
+            className="px-2 py-1 hover:bg-gray-200 rounded text-gray-600"
             title="Zoom out"
           >
-            ➖
+            −
           </button>
-          <span className="text-sm text-gray-600 min-w-[50px] text-center">
+          <span className="text-gray-500 min-w-[45px] text-center text-xs">
             {Math.round(scale * 100)}%
           </span>
           <button
             onClick={handleZoomIn}
-            className="p-1 hover:bg-gray-200 rounded"
+            className="px-2 py-1 hover:bg-gray-200 rounded text-gray-600"
             title="Zoom in"
           >
-            ➕
+            +
           </button>
           <button
             onClick={handleZoomReset}
-            className="p-1 hover:bg-gray-200 rounded text-xs"
+            className="px-2 py-1 hover:bg-gray-200 rounded text-xs text-gray-500"
             title="Reset zoom"
           >
             Reset
           </button>
         </div>
 
-        <div className="flex items-center space-x-2">
+        <div className="flex items-center gap-1 text-xs text-gray-500">
           <button
             onClick={() => goToPage(currentPage - 1)}
             disabled={currentPage <= 1}
-            className="p-1 hover:bg-gray-200 rounded disabled:opacity-50"
+            className="px-2 py-1 hover:bg-gray-200 rounded disabled:opacity-30"
           >
-            ◀
+            ‹
           </button>
-          <span className="text-sm text-gray-600">
-            Page {currentPage} of {numPages || '...'}
+          <span>
+            {currentPage} / {numPages || '…'}
           </span>
           <button
             onClick={() => goToPage(currentPage + 1)}
             disabled={currentPage >= numPages}
-            className="p-1 hover:bg-gray-200 rounded disabled:opacity-50"
+            className="px-2 py-1 hover:bg-gray-200 rounded disabled:opacity-30"
           >
-            ▶
+            ›
           </button>
         </div>
       </div>
@@ -137,7 +141,7 @@ export function PDFViewer({
       {/* PDF Container */}
       <div
         ref={containerRef}
-        className="flex-1 overflow-auto bg-gray-200 p-4"
+        className="flex-1 overflow-auto bg-gray-100 p-4"
       >
         {error ? (
           <div className="flex items-center justify-center h-full">
@@ -150,7 +154,7 @@ export function PDFViewer({
             onLoadError={onDocumentLoadError}
             loading={
               <div className="flex items-center justify-center h-64">
-                <div className="animate-spin text-4xl">⏳</div>
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-400" />
               </div>
             }
           >
@@ -160,7 +164,7 @@ export function PDFViewer({
                 ref={(el) => {
                   if (el) pageRefs.current.set(pageNumber, el);
                 }}
-                className="mb-4 shadow-lg relative"
+                className="mb-4 shadow-lg relative bg-white"
               >
                 <Page
                   pageNumber={pageNumber}
@@ -173,8 +177,9 @@ export function PDFViewer({
                 <HighlightLayer
                   highlights={getPageHighlights(pageNumber)}
                   activeId={activeHighlightId}
-                  scale={scale}
+                  hoveredId={hoveredHighlightId}
                   onClick={onHighlightClick}
+                  onHover={onHighlightHover}
                 />
               </div>
             ))}
@@ -188,18 +193,32 @@ export function PDFViewer({
 interface HighlightLayerProps {
   highlights: Highlight[];
   activeId?: string | null;
-  scale: number;
+  hoveredId?: string | null;
   onClick?: (id: string) => void;
+  onHover?: (id: string | null) => void;
 }
 
-function HighlightLayer({ highlights, activeId, scale, onClick }: HighlightLayerProps) {
+function HighlightLayer({ highlights, activeId, hoveredId, onClick, onHover }: HighlightLayerProps) {
   if (highlights.length === 0) return null;
 
   return (
     <div className="absolute inset-0 pointer-events-none">
       {highlights.map((highlight) => {
         const { bbox } = highlight;
-        const isActive = highlight.id === activeId;
+        const isSelected = highlight.id === activeId;
+        const isHovered = highlight.id === hoveredId;
+
+        // Visual hierarchy: selected (bright) > hovered (medium) > default (subtle)
+        let bgClass = 'bg-yellow-200/20'; // default: very subtle
+        let ringClass = '';
+
+        if (isSelected) {
+          bgClass = 'bg-yellow-400/50';
+          ringClass = 'ring-2 ring-yellow-500 ring-offset-1';
+        } else if (isHovered) {
+          bgClass = 'bg-yellow-300/40';
+          ringClass = 'ring-1 ring-yellow-400';
+        }
 
         return (
           <div
@@ -208,13 +227,12 @@ function HighlightLayer({ highlights, activeId, scale, onClick }: HighlightLayer
               e.stopPropagation();
               onClick?.(highlight.id);
             }}
+            onMouseEnter={() => onHover?.(highlight.id)}
+            onMouseLeave={() => onHover?.(null)}
             className={`
               absolute cursor-pointer pointer-events-auto
-              transition-all duration-200
-              ${isActive
-                ? 'bg-yellow-300/60 ring-2 ring-yellow-500'
-                : 'bg-yellow-200/40 hover:bg-yellow-300/50'
-              }
+              transition-all duration-150
+              ${bgClass} ${ringClass}
             `}
             style={{
               left: `${bbox.x}%`,
@@ -222,7 +240,7 @@ function HighlightLayer({ highlights, activeId, scale, onClick }: HighlightLayer
               width: `${bbox.width}%`,
               height: `${bbox.height}%`,
             }}
-            title="Click to view citation"
+            title={isSelected ? 'Selected chunk' : 'Click to select'}
           />
         );
       })}

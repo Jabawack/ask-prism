@@ -1,4 +1,14 @@
+import { definePDFJSModule, extractText as unpdfExtractText, getDocumentProxy } from 'unpdf';
 import { PageText } from './chunker';
+
+// Initialize serverless PDF.js module once
+let initialized = false;
+async function ensureInitialized() {
+  if (!initialized) {
+    await definePDFJSModule(() => import('unpdf/pdfjs'));
+    initialized = true;
+  }
+}
 
 export type FileType = 'pdf' | 'txt' | 'docx';
 
@@ -24,32 +34,26 @@ export function detectFileType(filename: string): FileType | null {
 }
 
 export async function extractPdf(buffer: Buffer): Promise<ExtractionResult> {
-  const { extractText, getDocumentProxy } = await import('unpdf');
+  await ensureInitialized();
 
-  const pdf = await getDocumentProxy(new Uint8Array(buffer));
-  const { text: fullText, totalPages } = await extractText(pdf, { mergePages: true });
+  const data = new Uint8Array(buffer);
+  const pdf = await getDocumentProxy(data);
 
-  // Extract text per page for better citations
-  const pages: PageText[] = [];
-  for (let i = 1; i <= totalPages; i++) {
-    const pageResult = await extractText(pdf, { mergePages: false });
-    if (pageResult.text && Array.isArray(pageResult.text)) {
-      pages.push({
-        pageNumber: i,
-        text: pageResult.text[i - 1] || '',
-      });
-    }
-  }
+  // Get merged text
+  const { text: fullText } = await unpdfExtractText(pdf, { mergePages: true });
 
-  // If per-page extraction didn't work, use full text
-  if (pages.length === 0 || pages.every(p => !p.text)) {
-    pages.push({ pageNumber: 1, text: fullText as string });
-  }
+  // Get per-page text
+  const { text: pageTexts } = await unpdfExtractText(pdf, { mergePages: false });
+
+  const pages: PageText[] = (pageTexts as string[]).map((text, index) => ({
+    pageNumber: index + 1,
+    text,
+  }));
 
   return {
     text: fullText as string,
     pages,
-    pageCount: totalPages,
+    pageCount: pdf.numPages,
   };
 }
 

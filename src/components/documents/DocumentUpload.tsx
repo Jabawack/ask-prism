@@ -6,9 +6,10 @@ import { ProcessingModeSelector, ProcessingMode } from './ProcessingModeSelector
 interface DocumentUploadProps {
   onUpload: (file: File, mode: ProcessingMode) => Promise<void>;
   disabled?: boolean;
+  compact?: boolean;
 }
 
-export function DocumentUpload({ onUpload, disabled }: DocumentUploadProps) {
+export function DocumentUpload({ onUpload, disabled, compact = false }: DocumentUploadProps) {
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -45,7 +46,7 @@ export function DocumentUpload({ onUpload, disabled }: DocumentUploadProps) {
     }
   };
 
-  const selectFile = (file: File) => {
+  const selectFile = async (file: File) => {
     const validTypes = ['application/pdf', 'text/plain', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
     const validExtensions = ['.pdf', '.txt', '.docx'];
 
@@ -64,6 +65,20 @@ export function DocumentUpload({ onUpload, disabled }: DocumentUploadProps) {
     }
 
     setError(null);
+
+    // In compact mode, auto-upload with default processing mode
+    if (compact) {
+      setIsUploading(true);
+      try {
+        await onUpload(file, 'basic');
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Upload failed');
+      } finally {
+        setIsUploading(false);
+      }
+      return;
+    }
+
     setSelectedFile(file);
   };
 
@@ -87,6 +102,44 @@ export function DocumentUpload({ onUpload, disabled }: DocumentUploadProps) {
     setSelectedFile(null);
     setError(null);
   };
+
+  // Compact mode: just a button
+  if (compact) {
+    return (
+      <div className="relative">
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".pdf,.txt,.docx"
+          onChange={handleFileChange}
+          disabled={disabled || isUploading}
+          className="hidden"
+        />
+        <button
+          onClick={() => fileInputRef.current?.click()}
+          disabled={disabled || isUploading}
+          className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+        >
+          {isUploading ? (
+            <>
+              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              Uploading...
+            </>
+          ) : (
+            <>
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              Upload PDF
+            </>
+          )}
+        </button>
+        {error && (
+          <p className="absolute top-full mt-1 text-xs text-red-600 whitespace-nowrap">{error}</p>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">

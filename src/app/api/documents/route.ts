@@ -4,6 +4,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { createDocument, listDocuments } from '@/lib/supabase/client';
 import { detectFileType } from '@/lib/processing/extractors';
 import { processDocumentV2, ProcessingMode } from '@/lib/processing/processor-v2';
+import type { ChunkingStrategy } from '@/lib/processing/chunker-with-bbox';
 import { Document } from '@/lib/supabase/types';
 
 const DEMO_USER_ID = 'demo-user';
@@ -14,6 +15,7 @@ export async function POST(request: NextRequest) {
     const formData = await request.formData();
     const file = formData.get('file') as File | null;
     const processingMode = (formData.get('processingMode') as ProcessingMode) || 'basic';
+    const chunkStrategy = (formData.get('chunkStrategy') as ChunkingStrategy) || 'per-block';
 
     if (!file) {
       return NextResponse.json({ error: 'No file provided' }, { status: 400 });
@@ -57,8 +59,8 @@ export async function POST(request: NextRequest) {
       processing_mode: processingMode,
     });
 
-    // Process asynchronously with the selected mode
-    processDocumentAsync(document, file, processingMode);
+    // Process asynchronously with the selected mode and strategy
+    processDocumentAsync(document, file, processingMode, chunkStrategy);
 
     return NextResponse.json({ document }, { status: 201 });
   } catch (error) {
@@ -86,11 +88,16 @@ export async function GET() {
 async function processDocumentAsync(
   document: Document,
   file: File,
-  mode: ProcessingMode
+  mode: ProcessingMode,
+  chunkStrategy: ChunkingStrategy
 ) {
+  console.log(`[API] Starting async processing for ${document.filename} (${document.id})`);
+  console.log(`[API] Mode: ${mode}, Chunk strategy: ${chunkStrategy}`);
   try {
     const buffer = Buffer.from(await file.arrayBuffer());
-    const result = await processDocumentV2(document, buffer, { mode });
+    console.log(`[API] Buffer created, size: ${buffer.length} bytes`);
+
+    const result = await processDocumentV2(document, buffer, { mode, chunkStrategy });
 
     if (!result.success) {
       console.error('[API] Document processing failed:', result.error);
@@ -98,6 +105,6 @@ async function processDocumentAsync(
       console.log(`[API] Document processed: ${result.chunkCount} chunks, mode: ${result.actualMode}`);
     }
   } catch (error) {
-    console.error('[API] Document processing failed:', error);
+    console.error('[API] Document processing error:', error);
   }
 }

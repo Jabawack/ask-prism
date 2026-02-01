@@ -2,33 +2,153 @@
 
 import type { ParseResult, PageResult, TextBlock, BoundingBox, ChunkWithBbox } from './types';
 
+export type ChunkingStrategy = 'recursive' | 'per-block' | 'per-line';
+
 export interface ChunkerOptions {
+  strategy: ChunkingStrategy;
   chunkSize: number;
   chunkOverlap: number;
   minChunkSize: number;
 }
 
 const DEFAULT_OPTIONS: ChunkerOptions = {
+  strategy: 'per-block',  // Changed: precise bbox per text block
   chunkSize: 1000,
   chunkOverlap: 200,
-  minChunkSize: 100,
+  minChunkSize: 20,       // Lowered: allow smaller blocks
 };
 
 /**
  * Chunk a parsed document while preserving bounding box information.
- * Each chunk will have a bbox that encompasses all its source text blocks.
+ *
+ * Strategies:
+ * - 'per-block': Each text block = 1 chunk with precise bbox (recommended)
+ * - 'per-line': Split by newlines for line-level chunks
+ * - 'recursive': Original recursive splitting (larger chunks, merged bbox)
  */
 export function chunkWithBbox(
   parseResult: ParseResult,
   options: Partial<ChunkerOptions> = {}
 ): ChunkWithBbox[] {
   const opts = { ...DEFAULT_OPTIONS, ...options };
+
+  switch (opts.strategy) {
+    case 'per-block':
+      return chunkPerBlock(parseResult, opts);
+    case 'per-line':
+      return chunkPerLine(parseResult, opts);
+    case 'recursive':
+    default:
+      return chunkRecursive(parseResult, opts);
+  }
+}
+
+/**
+ * Per-block chunking: Each TextBlock becomes its own chunk with precise bbox.
+ * Best for: Precise highlighting, smaller chunks, natural boundaries.
+ */
+function chunkPerBlock(
+  parseResult: ParseResult,
+  options: ChunkerOptions
+): ChunkWithBbox[] {
   const chunks: ChunkWithBbox[] = [];
   let globalChunkIndex = 0;
   let globalCharOffset = 0;
 
   for (const page of parseResult.pages) {
-    const pageChunks = chunkPage(page, opts, globalCharOffset);
+    // If page has blocks with bbox, use them directly
+    if (page.blocks.length > 0) {
+      for (const block of page.blocks) {
+        const text = block.text.trim();
+        if (text.length >= options.minChunkSize) {
+          chunks.push({
+            content: text,
+            chunkIndex: globalChunkIndex++,
+            pageNumber: page.pageNumber,
+            startChar: globalCharOffset,
+            endChar: globalCharOffset + text.length,
+            bbox: block.bbox,
+          });
+        }
+        globalCharOffset += block.text.length + 1;
+      }
+    } else {
+      // Fallback: split by lines if no blocks
+      const lines = page.fullText.split('\n');
+      for (const line of lines) {
+        const text = line.trim();
+        if (text.length >= options.minChunkSize) {
+          chunks.push({
+            content: text,
+            chunkIndex: globalChunkIndex++,
+            pageNumber: page.pageNumber,
+            startChar: globalCharOffset,
+            endChar: globalCharOffset + text.length,
+          });
+        }
+        globalCharOffset += line.length + 1;
+      }
+    }
+
+    globalCharOffset += 1; // page separator
+  }
+
+  return chunks;
+}
+
+/**
+ * Per-line chunking: Split by newlines.
+ */
+function chunkPerLine(
+  parseResult: ParseResult,
+  options: ChunkerOptions
+): ChunkWithBbox[] {
+  const chunks: ChunkWithBbox[] = [];
+  let globalChunkIndex = 0;
+  let globalCharOffset = 0;
+
+  for (const page of parseResult.pages) {
+    const lines = page.fullText.split('\n');
+
+    for (const line of lines) {
+      const text = line.trim();
+      if (text.length >= options.minChunkSize) {
+        // Try to find matching block for bbox
+        const matchingBlock = page.blocks.find(b =>
+          b.text.trim() === text || text.includes(b.text.trim())
+        );
+
+        chunks.push({
+          content: text,
+          chunkIndex: globalChunkIndex++,
+          pageNumber: page.pageNumber,
+          startChar: globalCharOffset,
+          endChar: globalCharOffset + text.length,
+          bbox: matchingBlock?.bbox,
+        });
+      }
+      globalCharOffset += line.length + 1;
+    }
+
+    globalCharOffset += 1;
+  }
+
+  return chunks;
+}
+
+/**
+ * Original recursive chunking (larger chunks, merged bbox).
+ */
+function chunkRecursive(
+  parseResult: ParseResult,
+  options: ChunkerOptions
+): ChunkWithBbox[] {
+  const chunks: ChunkWithBbox[] = [];
+  let globalChunkIndex = 0;
+  let globalCharOffset = 0;
+
+  for (const page of parseResult.pages) {
+    const pageChunks = chunkPage(page, options, globalCharOffset);
 
     for (const chunk of pageChunks) {
       chunks.push({
@@ -37,7 +157,7 @@ export function chunkWithBbox(
       });
     }
 
-    globalCharOffset += page.fullText.length + 2; // +2 for '\n\n' between pages
+    globalCharOffset += page.fullText.length + 2;
   }
 
   return chunks;

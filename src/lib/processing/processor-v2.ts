@@ -5,19 +5,44 @@ import { updateDocumentStatus, insertChunks } from '@/lib/supabase/client';
 import { parseDocument, getAvailableModes } from './parser-factory';
 import { chunkWithBbox, estimateTokenCount } from './chunker-with-bbox';
 import { embedLargeBatch } from './embeddings';
-import type { ProcessingMode, ParseResult } from './types';
+import { processingEventBus } from './event-bus';
+import type { ProcessingMode, ParseResult, ProcessingEvent } from './types';
+
+import type { ChunkingStrategy } from './chunker-with-bbox';
 
 export interface ProcessingOptions {
   mode?: ProcessingMode;
+  chunkStrategy?: ChunkingStrategy;
   chunkSize?: number;
   chunkOverlap?: number;
 }
 
 const DEFAULT_OPTIONS: ProcessingOptions = {
   mode: 'basic',
+  chunkStrategy: 'per-block',  // Precise bbox per text block
   chunkSize: 1000,
   chunkOverlap: 200,
 };
+
+/**
+ * Helper to emit progress events
+ */
+function emitProgress(
+  documentId: string,
+  type: ProcessingEvent['type'],
+  message: string,
+  progress?: number,
+  details?: ProcessingEvent['details']
+): void {
+  processingEventBus.emitProgress(documentId, {
+    type,
+    documentId,
+    timestamp: Date.now(),
+    message,
+    progress,
+    details,
+  });
+}
 
 export interface ProcessingResult {
   success: boolean;
@@ -40,9 +65,12 @@ export async function processDocumentV2(
 
   try {
     await updateDocumentStatus(document.id, 'processing');
+    emitProgress(document.id, 'started', 'Starting document processing...', 0);
 
     // Parse the document
     console.log(`[ProcessorV2] Parsing ${document.filename} with mode: ${opts.mode}`);
+    emitProgress(document.id, 'parsing', 'Parsing PDF...', 10);
+
     const parseResult = await parseDocument(fileBuffer, {
       mode: opts.mode!,
       fallbackOnError: true,
@@ -54,10 +82,16 @@ export async function processDocumentV2(
 
     console.log(`[ProcessorV2] Extracted ${parseResult.pageCount} pages, ${parseResult.fullText.length} chars`);
     console.log(`[ProcessorV2] Actual parser used: ${parseResult.parser}`);
+    emitProgress(document.id, 'parsing_complete', `Parsed ${parseResult.pageCount} pages`, 20, {
+      pageCount: parseResult.pageCount,
+    });
 
     // Chunk with bounding boxes
-    console.log(`[ProcessorV2] Chunking document with bbox preservation`);
+    console.log(`[ProcessorV2] Chunking document with strategy: ${opts.chunkStrategy}`);
+    emitProgress(document.id, 'chunking', 'Creating chunks...', 30);
+
     const chunks = chunkWithBbox(parseResult, {
+      strategy: opts.chunkStrategy,
       chunkSize: opts.chunkSize,
       chunkOverlap: opts.chunkOverlap,
     });
@@ -67,12 +101,26 @@ export async function processDocumentV2(
     }
 
     console.log(`[ProcessorV2] Generated ${chunks.length} chunks`);
+    emitProgress(document.id, 'chunking_complete', `Created ${chunks.length} chunks`, 40, {
+      chunkCount: chunks.length,
+    });
 
     // Generate embeddings
     console.log(`[ProcessorV2] Generating embeddings`);
+    emitProgress(document.id, 'embedding', 'Generating embeddings...', 40);
+
     const chunkTexts = chunks.map(c => c.content);
     const embeddings = await embedLargeBatch(chunkTexts, (completed, total) => {
       console.log(`[ProcessorV2] Embedded ${completed}/${total} chunks`);
+      // Map embedding progress from 40% to 90%
+      const embeddingProgress = 40 + Math.round((completed / total) * 50);
+      emitProgress(
+        document.id,
+        'embedding_progress',
+        `Embedding chunks (${completed}/${total})...`,
+        embeddingProgress,
+        { embeddedCount: completed, totalChunks: total }
+      );
     });
 
     // Prepare chunk records with bbox
@@ -111,6 +159,7 @@ export async function processDocumentV2(
 
     // Insert chunks
     console.log(`[ProcessorV2] Inserting chunks into database`);
+    emitProgress(document.id, 'storing', 'Saving to database...', 95);
     await insertChunks(chunkRecords);
 
     // Update document status with parse info
@@ -126,6 +175,10 @@ export async function processDocumentV2(
     });
 
     console.log(`[ProcessorV2] Document ${document.id} processed successfully`);
+    emitProgress(document.id, 'complete', 'Ready', 100, {
+      pageCount: parseResult.pageCount,
+      chunkCount: chunks.length,
+    });
 
     return {
       success: true,
@@ -140,6 +193,10 @@ export async function processDocumentV2(
 
     await updateDocumentStatus(document.id, 'failed', {
       error_message: errorMessage,
+    });
+
+    emitProgress(document.id, 'error', `Failed: ${errorMessage}`, undefined, {
+      error: errorMessage,
     });
 
     return {
