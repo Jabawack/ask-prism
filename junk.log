@@ -1,0 +1,83 @@
+Request URL
+http://localhost:3000/api/conversations
+Request Method
+GET
+Status Code
+200 OK
+
+
+{
+    "conversations": [
+        {
+            "id": "894701f2-a1b2-40b1-bc22-dedcfd5ca02f",
+            "user_id": "demo-user",
+            "document_ids": [
+                "04c8eece-77bf-4874-b697-4aeec3175ebd"
+            ],
+            "title": null,
+            "created_at": "2026-02-01T19:18:26.417699+00:00",
+            "updated_at": "2026-02-01T19:18:26.417699+00:00"
+        },
+        {
+            "id": "4a867779-a436-4f77-9583-808c9dfefe6b",
+            "user_id": "demo-user",
+            "document_ids": [
+                "04c8eece-77bf-4874-b697-4aeec3175ebd"
+            ],
+            "title": null,
+            "created_at": "2026-02-01T19:04:33.78595+00:00",
+            "updated_at": "2026-02-01T19:04:39.818+00:00"
+        },
+        {
+            "id": "f62cb449-5f3a-44d5-8c17-3f117ae36a59",
+            "user_id": "demo-user",
+            "document_ids": [
+                "8d5b001d-42a6-42d1-a99b-a3a078b16949"
+            ],
+            "title": null,
+            "created_at": "2026-02-01T01:39:09.316541+00:00",
+            "updated_at": "2026-02-01T01:39:48.219+00:00"
+        },
+        {
+            "id": "40be775c-e5f5-4b12-a6bc-50eaa5989899",
+            "user_id": "demo-user",
+            "document_ids": [
+                "7a9314f9-72ab-4eb2-8131-5b47ef866134"
+            ],
+            "title": null,
+            "created_at": "2026-01-31T16:07:05.087393+00:00",
+            "updated_at": "2026-01-31T16:07:05.087393+00:00"
+        },
+        {
+            "id": "6891853c-a904-4173-b098-8298091df42d",
+            "user_id": "demo-user",
+            "document_ids": [
+                "7a9314f9-72ab-4eb2-8131-5b47ef866134"
+            ],
+            "title": null,
+            "created_at": "2026-01-31T16:06:51.573686+00:00",
+            "updated_at": "2026-01-31T16:06:51.573686+00:00"
+        },
+        {
+            "id": "a53f0a7b-aa76-4df5-9b4b-41d7c99b5343",
+            "user_id": "demo-user",
+            "document_ids": [
+                "7a9314f9-72ab-4eb2-8131-5b47ef866134"
+            ],
+            "title": null,
+            "created_at": "2026-01-31T16:06:41.707245+00:00",
+            "updated_at": "2026-01-31T16:06:41.707245+00:00"
+        },
+        {
+            "id": "bea5d4d4-5bfd-4ce6-98a7-63b555d49e7d",
+            "user_id": "demo-user",
+            "document_ids": [
+                "7a9314f9-72ab-4eb2-8131-5b47ef866134"
+            ],
+            "title": null,
+            "created_at": "2026-01-31T15:45:05.599994+00:00",
+            "updated_at": "2026-01-31T15:46:10.09+00:00"
+        }
+    ]
+}
+

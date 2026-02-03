@@ -60,7 +60,7 @@ Please verify if this answer accurately represents the information in the source
 
   try {
     const message = await anthropic.messages.create({
-      model: 'claude-3-5-haiku-latest',
+      model: 'claude-haiku-4-5',
       max_tokens: 1024,
       system: VERIFY_SYSTEM_PROMPT,
       messages: [{ role: 'user', content: verifyPrompt }],
@@ -100,7 +100,7 @@ Please verify if this answer accurately represents the information in the source
     }
 
     const verification: VerificationResult = {
-      model: 'claude-3-5-haiku-latest',
+      model: 'claude-haiku-4-5',
       agrees: verificationData.agrees,
       notes: verificationData.notes + (verificationData.issues?.length
         ? `\nIssues: ${verificationData.issues.join(', ')}`
@@ -117,7 +117,7 @@ Please verify if this answer accurately represents the information in the source
     // On error, default to no verification (pass through)
     return {
       verification: {
-        model: 'claude-3-5-haiku-latest',
+        model: 'claude-haiku-4-5',
         agrees: true,
         notes: 'Verification failed due to API error, passing through',
       },

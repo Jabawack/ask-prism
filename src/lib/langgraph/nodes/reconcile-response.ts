@@ -1,6 +1,6 @@
-// Reconciliation node using a reasoning model (o3) to resolve disagreements
+// Reconciliation node using Claude to resolve disagreements between models
 
-import { ChatOpenAI } from '@langchain/openai';
+import { ChatAnthropic } from '@langchain/anthropic';
 import type { GraphState } from '../types';
 import type { VerificationResult, ReconciliationResult } from '@/lib/supabase/types';
 
@@ -43,10 +43,9 @@ export async function reconcileResponse(
 ): Promise<ReconcileOutput> {
   const { state, primaryAnswer, verification } = input;
 
-  // Use o3 or fall back to GPT-4 for reasoning
-  // Note: o3 may not be available in all regions/accounts
-  const model = new ChatOpenAI({
-    modelName: process.env.RECONCILIATION_MODEL || 'gpt-4o',
+  // Use Claude for reconciliation - good at nuanced reasoning
+  const model = new ChatAnthropic({
+    modelName: process.env.RECONCILIATION_MODEL || 'claude-opus-4-5',
     temperature: 0,
   });
 
@@ -107,7 +106,7 @@ Please analyze both perspectives and determine the correct answer based on the s
     }
 
     const reconciliation: ReconciliationResult = {
-      model: process.env.RECONCILIATION_MODEL || 'gpt-4o',
+      model: process.env.RECONCILIATION_MODEL || 'claude-opus-4-5',
       resolution: reconcileData.analysis,
       chosen: reconcileData.chosen,
     };
@@ -123,7 +122,7 @@ Please analyze both perspectives and determine the correct answer based on the s
     // On error, default to primary answer
     return {
       reconciliation: {
-        model: process.env.RECONCILIATION_MODEL || 'gpt-4o',
+        model: process.env.RECONCILIATION_MODEL || 'claude-opus-4-5',
         resolution: 'Reconciliation failed due to API error, using primary answer',
         chosen: 'primary',
       },

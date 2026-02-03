@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { Document, Page, pdfjs } from 'react-pdf';
 import 'react-pdf/dist/Page/AnnotationLayer.css';
 import 'react-pdf/dist/Page/TextLayer.css';
@@ -8,6 +8,11 @@ import type { BoundingBox } from '@/lib/supabase/types';
 
 // Configure the worker
 pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
+
+// Number of pages to render above/below viewport
+const PAGE_BUFFER = 2;
+// Estimated page height for placeholder (will be updated after first render)
+const ESTIMATED_PAGE_HEIGHT = 800;
 
 interface Highlight {
   id: string;
@@ -39,18 +44,77 @@ export function PDFViewer({
   const [scale, setScale] = useState(1.0);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [visiblePages, setVisiblePages] = useState<Set<number>>(new Set([1, 2, 3]));
+  const [pageHeights, setPageHeights] = useState<Map<number, number>>(new Map());
   const containerRef = useRef<HTMLDivElement>(null);
   const pageRefs = useRef<Map<number, HTMLDivElement>>(new Map());
+  const observerRef = useRef<IntersectionObserver | null>(null);
 
   const onDocumentLoadSuccess = useCallback(({ numPages }: { numPages: number }) => {
     setNumPages(numPages);
     setIsLoading(false);
+    // Initially show first few pages
+    setVisiblePages(new Set([1, 2, 3].filter(p => p <= numPages)));
   }, []);
 
   const onDocumentLoadError = useCallback((error: Error) => {
     console.error('PDF load error:', error);
     setError('Failed to load PDF');
     setIsLoading(false);
+  }, []);
+
+  // Set up IntersectionObserver for windowing
+  useEffect(() => {
+    if (!containerRef.current || numPages === 0) return;
+
+    observerRef.current = new IntersectionObserver(
+      (entries) => {
+        const newVisible = new Set(visiblePages);
+
+        entries.forEach((entry) => {
+          const pageNum = parseInt(entry.target.getAttribute('data-page') || '0', 10);
+          if (pageNum === 0) return;
+
+          if (entry.isIntersecting) {
+            // Add this page and buffer pages
+            for (let i = Math.max(1, pageNum - PAGE_BUFFER); i <= Math.min(numPages, pageNum + PAGE_BUFFER); i++) {
+              newVisible.add(i);
+            }
+            // Update current page indicator
+            if (entry.intersectionRatio > 0.5) {
+              setCurrentPage(pageNum);
+            }
+          }
+        });
+
+        setVisiblePages(newVisible);
+      },
+      {
+        root: containerRef.current,
+        rootMargin: '200px 0px', // Start loading pages 200px before they're visible
+        threshold: [0, 0.5, 1],
+      }
+    );
+
+    return () => {
+      observerRef.current?.disconnect();
+    };
+  }, [numPages]); // Don't include visiblePages to avoid re-creating observer
+
+  // Observe page placeholders
+  const observePage = useCallback((element: HTMLDivElement | null, pageNumber: number) => {
+    if (element) {
+      pageRefs.current.set(pageNumber, element);
+      observerRef.current?.observe(element);
+    }
+  }, []);
+
+  // Track rendered page heights for better placeholder sizing
+  const onPageRenderSuccess = useCallback((pageNumber: number) => {
+    const pageEl = pageRefs.current.get(pageNumber);
+    if (pageEl) {
+      setPageHeights(prev => new Map(prev).set(pageNumber, pageEl.offsetHeight));
+    }
   }, []);
 
   // Scroll to highlight when activeHighlightId changes
@@ -60,12 +124,24 @@ export function PDFViewer({
     const highlight = highlights.find(h => h.id === activeHighlightId);
     if (!highlight) return;
 
-    const pageRef = pageRefs.current.get(highlight.bbox.page);
-    if (pageRef) {
-      pageRef.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      setCurrentPage(highlight.bbox.page);
-    }
-  }, [activeHighlightId, highlights]);
+    // Ensure the page is in visible set
+    setVisiblePages(prev => {
+      const newSet = new Set(prev);
+      for (let i = Math.max(1, highlight.bbox.page - PAGE_BUFFER); i <= Math.min(numPages, highlight.bbox.page + PAGE_BUFFER); i++) {
+        newSet.add(i);
+      }
+      return newSet;
+    });
+
+    // Scroll after a short delay to let the page render
+    setTimeout(() => {
+      const pageRef = pageRefs.current.get(highlight.bbox.page);
+      if (pageRef) {
+        pageRef.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        setCurrentPage(highlight.bbox.page);
+      }
+    }, 100);
+  }, [activeHighlightId, highlights, numPages]);
 
   // Get highlights for a specific page
   const getPageHighlights = (pageNumber: number) => {
@@ -79,11 +155,37 @@ export function PDFViewer({
   const goToPage = (page: number) => {
     if (page >= 1 && page <= numPages) {
       setCurrentPage(page);
-      const pageRef = pageRefs.current.get(page);
-      if (pageRef) {
-        pageRef.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      }
+      // Ensure the page and nearby pages are visible
+      setVisiblePages(prev => {
+        const newSet = new Set(prev);
+        for (let i = Math.max(1, page - PAGE_BUFFER); i <= Math.min(numPages, page + PAGE_BUFFER); i++) {
+          newSet.add(i);
+        }
+        return newSet;
+      });
+
+      setTimeout(() => {
+        const pageRef = pageRefs.current.get(page);
+        if (pageRef) {
+          pageRef.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      }, 50);
     }
+  };
+
+  // Get estimated height for a page placeholder
+  const getPageHeight = (pageNumber: number) => {
+    // Use actual height if we've measured it, otherwise estimate
+    const measured = pageHeights.get(pageNumber);
+    if (measured) return measured * scale;
+
+    // Use average of measured heights if available
+    if (pageHeights.size > 0) {
+      const avgHeight = Array.from(pageHeights.values()).reduce((a, b) => a + b, 0) / pageHeights.size;
+      return avgHeight * scale;
+    }
+
+    return ESTIMATED_PAGE_HEIGHT * scale;
   };
 
   return (
@@ -158,31 +260,49 @@ export function PDFViewer({
               </div>
             }
           >
-            {!isLoading && Array.from({ length: numPages }, (_, i) => i + 1).map((pageNumber) => (
-              <div
-                key={pageNumber}
-                ref={(el) => {
-                  if (el) pageRefs.current.set(pageNumber, el);
-                }}
-                className="mb-4 shadow-lg relative bg-white"
-              >
-                <Page
-                  pageNumber={pageNumber}
-                  scale={scale}
-                  renderTextLayer={true}
-                  renderAnnotationLayer={true}
-                />
+            {!isLoading && Array.from({ length: numPages }, (_, i) => i + 1).map((pageNumber) => {
+              const shouldRender = visiblePages.has(pageNumber);
+              const estimatedHeight = getPageHeight(pageNumber);
 
-                {/* Highlight overlays for this page */}
-                <HighlightLayer
-                  highlights={getPageHighlights(pageNumber)}
-                  activeId={activeHighlightId}
-                  hoveredId={hoveredHighlightId}
-                  onClick={onHighlightClick}
-                  onHover={onHighlightHover}
-                />
-              </div>
-            ))}
+              return (
+                <div
+                  key={pageNumber}
+                  ref={(el) => observePage(el, pageNumber)}
+                  data-page={pageNumber}
+                  className="mb-4 shadow-lg relative bg-white"
+                  style={!shouldRender ? { minHeight: estimatedHeight } : undefined}
+                >
+                  {shouldRender ? (
+                    <>
+                      <Page
+                        pageNumber={pageNumber}
+                        scale={scale}
+                        renderTextLayer={true}
+                        renderAnnotationLayer={true}
+                        onRenderSuccess={() => onPageRenderSuccess(pageNumber)}
+                      />
+
+                      {/* Highlight overlays for this page */}
+                      <HighlightLayer
+                        highlights={getPageHighlights(pageNumber)}
+                        activeId={activeHighlightId}
+                        hoveredId={hoveredHighlightId}
+                        onClick={onHighlightClick}
+                        onHover={onHighlightHover}
+                      />
+                    </>
+                  ) : (
+                    // Placeholder for unloaded pages
+                    <div
+                      className="flex items-center justify-center bg-gray-50"
+                      style={{ height: estimatedHeight }}
+                    >
+                      <span className="text-gray-400 text-sm">Page {pageNumber}</span>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </Document>
         )}
       </div>

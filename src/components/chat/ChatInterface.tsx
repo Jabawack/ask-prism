@@ -258,6 +258,8 @@ export function ChatInterface({
       let stepIndex = 0;
 
       const decoder = new TextDecoder();
+      let currentEventType = '';
+
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
@@ -266,12 +268,14 @@ export function ChatInterface({
         const lines = chunk.split('\n');
 
         for (const line of lines) {
-          if (line.startsWith('data: ')) {
+          if (line.startsWith('event: ')) {
+            currentEventType = line.slice(7).trim();
+          } else if (line.startsWith('data: ')) {
             try {
-              const data = JSON.parse(line.slice(6));
+              const eventData = JSON.parse(line.slice(6));
 
-              if (data.type === 'thinking') {
-                const stepLabel = data.data?.step;
+              if (currentEventType === 'thinking') {
+                const stepLabel = eventData?.step;
                 if (stepLabel) {
                   thinkingSteps = thinkingSteps.map(s =>
                     s.status === 'active' ? { ...s, status: 'complete' as const } : s
@@ -288,10 +292,10 @@ export function ChatInterface({
                       : m
                   ));
                 }
-              } else if (data.type === 'sources') {
-                citations = data.data.citations || [];
-              } else if (data.type === 'content') {
-                assistantContent += data.data.token;
+              } else if (currentEventType === 'sources') {
+                citations = eventData.citations || [];
+              } else if (currentEventType === 'content') {
+                assistantContent += eventData.token;
                 thinkingSteps = thinkingSteps.map(s => ({ ...s, status: 'complete' as const }));
 
                 setMessages(prev => prev.map(m =>
@@ -307,6 +311,8 @@ export function ChatInterface({
                     : m
                 ));
               }
+
+              currentEventType = ''; // Reset after processing
             } catch {
               // Ignore parse errors
             }
@@ -562,7 +568,7 @@ function MessageBubble({ message, onCitationClick, onUpdatePendingMode, onConfir
         ))}
 
         {/* Message content */}
-        {(message.content || message.thinkingSteps?.length) && (
+        {(message.content || (message.thinkingSteps?.length ?? 0) > 0) && (
           <div className={`rounded-2xl px-4 py-3 ${
             isUser
               ? 'bg-[var(--color-text-primary)] text-[var(--color-text-inverse)]'
@@ -579,7 +585,7 @@ function MessageBubble({ message, onCitationClick, onUpdatePendingMode, onConfir
 
             {/* Text content */}
             {message.content && (
-              <p className="text-body whitespace-pre-wrap">{message.content}</p>
+              <p className={`whitespace-pre-wrap ${isUser ? 'text-base' : 'text-body'}`}>{message.content}</p>
             )}
 
             {/* Citations */}
