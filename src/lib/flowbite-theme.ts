@@ -277,4 +277,30 @@ export const askPrismTheme = createTheme({
       xl: 'h-10 w-10',
     },
   },
+
+  // Table - use CSS variables for dark mode support
+  table: {
+    root: {
+      base: 'w-full text-left text-sm text-[var(--color-text-secondary)]',
+      shadow: '',
+      wrapper: 'relative',
+    },
+    head: {
+      base: 'text-xs uppercase text-[var(--color-text-secondary)] bg-[var(--color-bg-secondary)]',
+      cell: {
+        base: 'px-6 py-3 bg-[var(--color-bg-secondary)] text-[var(--color-text-secondary)]',
+      },
+    },
+    row: {
+      base: 'border-b border-[var(--color-border)] bg-[var(--color-bg-primary)]',
+      hovered: 'hover:bg-[var(--color-bg-secondary)]',
+      striped: 'odd:bg-[var(--color-bg-primary)] even:bg-[var(--color-bg-secondary)]',
+    },
+    body: {
+      base: 'divide-y divide-[var(--color-border)]',
+      cell: {
+        base: 'px-6 py-4 text-[var(--color-text-primary)]',
+      },
+    },
+  },
 });

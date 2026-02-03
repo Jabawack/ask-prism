@@ -72,14 +72,16 @@ const GTMTableComponent = ({
   const tableHeader = useMemo(
     () => (
       <TableHead className="bg-[var(--color-bg-secondary)]">
-        {columns.map((col) => (
-          <TableHeadCell
-            key={col.id}
-            className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-[var(--color-text-secondary)]"
-          >
-            {col.label}
-          </TableHeadCell>
-        ))}
+        <TableRow>
+          {columns.map((col) => (
+            <TableHeadCell
+              key={col.id}
+              className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-[var(--color-text-secondary)]"
+            >
+              {col.label}
+            </TableHeadCell>
+          ))}
+        </TableRow>
       </TableHead>
     ),
     [columns]

@@ -1,6 +1,6 @@
 'use client';
 
-import { memo } from 'react';
+import { memo, useState, useEffect, useRef } from 'react';
 import { TableCell } from 'flowbite-react';
 import { SkeletonCell } from './SkeletonCell';
 import { cn } from '@/lib/utils';
@@ -14,10 +14,25 @@ interface GTMTableCellProps {
 }
 
 const GTMTableCellComponent = ({
+  rowId,
+  columnId,
   value,
   isLoading,
   isNew = false,
 }: GTMTableCellProps) => {
+  const [showHighlight, setShowHighlight] = useState(false);
+  const wasLoadingRef = useRef(isLoading);
+
+  // Highlight cell when it transitions from loading to loaded
+  useEffect(() => {
+    if (wasLoadingRef.current && !isLoading && isNew) {
+      setShowHighlight(true);
+      const timer = setTimeout(() => setShowHighlight(false), 600);
+      return () => clearTimeout(timer);
+    }
+    wasLoadingRef.current = isLoading;
+  }, [isLoading, isNew]);
+
   // Format the display value
   const displayValue = (() => {
     if (value === undefined || value === null) return '';
@@ -28,8 +43,8 @@ const GTMTableCellComponent = ({
   return (
     <TableCell
       className={cn(
-        'whitespace-nowrap px-4 py-3 text-sm text-[var(--color-text-primary)]',
-        isNew && !isLoading && 'animate-in fade-in-0 duration-300'
+        'whitespace-nowrap px-4 py-3 text-sm text-[var(--color-text-primary)] transition-all duration-150',
+        showHighlight && 'bg-[var(--color-primary)]/10'
       )}
     >
       {isLoading ? <SkeletonCell /> : displayValue}

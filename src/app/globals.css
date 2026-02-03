@@ -62,6 +62,8 @@
   --radius-xl: 1rem;
   --radius-full: 9999px;
   --radius: 0.625rem;
+
+  /* Shadcn variables - Light mode */
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
@@ -269,7 +271,33 @@ body {
   border-color: var(--color-border-strong);
 }
 
+/* =============================================================================
+   DARK MODE
+   ============================================================================= */
+
 .dark {
+  /* Ask Prism design system - Dark mode colors */
+  --color-text-primary: #f9fafb;    /* gray-50 */
+  --color-text-secondary: #e5e7eb;  /* gray-200 */
+  --color-text-tertiary: #d1d5db;   /* gray-300 */
+  --color-text-muted: #9ca3af;      /* gray-400 */
+  --color-text-placeholder: #6b7280; /* gray-500 */
+  --color-text-inverse: #111827;    /* gray-900 */
+
+  --color-primary: #3b82f6;         /* blue-500 */
+  --color-primary-hover: #60a5fa;   /* blue-400 */
+
+  --color-success: #22c55e;         /* green-500 */
+  --color-error: #ef4444;           /* red-500 */
+  --color-warning: #f59e0b;         /* amber-500 */
+
+  --color-bg-primary: #111827;      /* gray-900 */
+  --color-bg-secondary: #1f2937;    /* gray-800 */
+  --color-bg-tertiary: #374151;     /* gray-700 */
+  --color-border: #374151;          /* gray-700 */
+  --color-border-strong: #4b5563;   /* gray-600 */
+
+  /* Shadcn variables - Dark mode */
   --background: oklch(0.145 0 0);
   --foreground: oklch(0.985 0 0);
   --card: oklch(0.205 0 0);

@@ -54,10 +54,14 @@ const DemoChatComponent = ({
           ...prev,
           { role: 'assistant', content: 'Done! I\'ve added the new column and populated the data.' },
         ]);
-      } catch {
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : '';
+        const responseMessage = errorMessage === 'Column already exists'
+          ? 'That column already exists in the table.'
+          : 'Sorry, I couldn\'t understand that request. Try asking for a specific column like "funding" or "tech stack".';
         setMessages((prev) => [
           ...prev,
-          { role: 'assistant', content: 'Sorry, I couldn\'t understand that request. Try asking for a specific column like "funding" or "tech stack".' },
+          { role: 'assistant', content: responseMessage },
         ]);
       }
     },
