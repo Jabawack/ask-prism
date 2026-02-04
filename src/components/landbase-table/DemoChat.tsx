@@ -69,11 +69,30 @@ const DemoChatComponent = ({
   );
 
   const handlePromptClick = useCallback(
-    (prompt: string) => {
+    async (prompt: string) => {
       if (isProcessing) return;
-      setInput(prompt);
+
+      // Set input and submit directly
+      setMessages((prev) => [...prev, { role: 'user', content: prompt }]);
+
+      try {
+        await onAddColumn(prompt);
+        setMessages((prev) => [
+          ...prev,
+          { role: 'assistant', content: 'Done! I\'ve added the new column and populated the data.' },
+        ]);
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : '';
+        const responseMessage = errorMessage === 'Column already exists'
+          ? 'That column already exists in the table.'
+          : 'Sorry, I couldn\'t understand that request. Try asking for a specific column like "funding" or "tech stack".';
+        setMessages((prev) => [
+          ...prev,
+          { role: 'assistant', content: responseMessage },
+        ]);
+      }
     },
-    [isProcessing]
+    [isProcessing, onAddColumn]
   );
 
   return (
