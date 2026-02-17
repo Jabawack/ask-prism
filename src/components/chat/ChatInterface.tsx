@@ -51,7 +51,8 @@ function getProcessingSteps(progress: DocumentProgress): ThinkingStep[] {
 
   return allSteps.map((step, index) => ({
     ...step,
-    status: index < currentStepIndex ? 'complete' as const
+    status: progress.isComplete ? 'complete' as const
+      : index < currentStepIndex ? 'complete' as const
       : index === currentStepIndex ? 'active' as const
       : 'pending' as const,
   }));

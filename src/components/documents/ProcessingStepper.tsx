@@ -58,6 +58,7 @@ interface ProcessingStepperProps {
 export function ProcessingStepper({ progress, filename }: ProcessingStepperProps) {
   const currentStepIndex = getStepIndex(progress.status);
   const isError = progress.isError;
+  const allDone = progress.isComplete;
 
   return (
     <div className="p-4">
@@ -71,8 +72,8 @@ export function ProcessingStepper({ progress, filename }: ProcessingStepperProps
 
       <div className="space-y-1">
         {STEPS.map((step, index) => {
-          const isCompleted = index < currentStepIndex;
-          const isCurrent = index === currentStepIndex && !isError;
+          const isCompleted = allDone || index < currentStepIndex;
+          const isCurrent = !allDone && index === currentStepIndex && !isError;
           const isPending = index > currentStepIndex;
 
           return (
