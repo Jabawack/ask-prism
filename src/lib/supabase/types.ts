@@ -22,6 +22,19 @@ export interface Document {
   updated_at: string;
 }
 
+export interface ProcessingStep {
+  type: string;
+  message: string;
+  progress: number;
+  details?: {
+    pageCount?: number;
+    chunkCount?: number;
+    embeddedCount?: number;
+    totalChunks?: number;
+    error?: string;
+  };
+}
+
 export interface DocumentMetadata {
   processing_mode?: ProcessingMode;
   parser_used?: 'pdfjs' | 'reducto';
@@ -29,6 +42,7 @@ export interface DocumentMetadata {
   doc_type?: string;
   firm_name?: string;
   bank_name?: string;
+  processing_step?: ProcessingStep;
 }
 
 export interface ExtractedField {

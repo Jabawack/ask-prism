@@ -82,6 +82,22 @@ export async function updateDocumentStatus(
   if (error) throw new Error(`Failed to update document: ${error.message}`);
 }
 
+export async function updateProcessingStep(
+  id: string,
+  step: { type: string; message: string; progress: number; details?: Record<string, unknown> }
+): Promise<void> {
+  const client = getSupabaseClient();
+  const { error } = await client
+    .from('documents')
+    .update({
+      metadata: { processing_step: step },
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', id);
+
+  if (error) console.error(`Failed to update processing step: ${error.message}`);
+}
+
 export async function deleteDocument(id: string): Promise<void> {
   const client = getSupabaseClient();
   const { error } = await client.from('documents').delete().eq('id', id);

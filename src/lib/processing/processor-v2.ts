@@ -1,7 +1,7 @@
 // Enhanced document processor with dual parser support and bounding boxes
 
 import { Document, DocumentChunk, BoundingBox } from '@/lib/supabase/types';
-import { updateDocumentStatus, insertChunks } from '@/lib/supabase/client';
+import { updateDocumentStatus, updateProcessingStep, insertChunks } from '@/lib/supabase/client';
 import { parseDocument, getAvailableModes } from './parser-factory';
 import { chunkWithBbox, estimateTokenCount } from './chunker-with-bbox';
 import { embedLargeBatch } from './embeddings';
@@ -24,16 +24,22 @@ const DEFAULT_OPTIONS: ProcessingOptions = {
   chunkOverlap: 200,
 };
 
+// Steps that should be persisted to DB for serverless progress tracking
+const DB_PERSISTED_STEPS = new Set<ProcessingEvent['type']>([
+  'started', 'parsing', 'chunking', 'embedding', 'storing', 'complete', 'error',
+]);
+
 /**
- * Helper to emit progress events
+ * Helper to emit progress events.
+ * Emits to in-memory bus (works in dev) and persists major steps to DB (works on Vercel).
  */
-function emitProgress(
+async function emitProgress(
   documentId: string,
   type: ProcessingEvent['type'],
   message: string,
   progress?: number,
   details?: ProcessingEvent['details']
-): void {
+): Promise<void> {
   processingEventBus.emitProgress(documentId, {
     type,
     documentId,
@@ -42,6 +48,20 @@ function emitProgress(
     progress,
     details,
   });
+
+  // Persist major steps to DB so polling-based clients can track progress
+  if (DB_PERSISTED_STEPS.has(type)) {
+    try {
+      await updateProcessingStep(documentId, {
+        type,
+        message,
+        progress: progress ?? 0,
+        details: details as Record<string, unknown>,
+      });
+    } catch (err) {
+      console.error('[ProcessorV2] Failed to persist processing step:', err);
+    }
+  }
 }
 
 export interface ProcessingResult {
@@ -65,11 +85,11 @@ export async function processDocumentV2(
 
   try {
     await updateDocumentStatus(document.id, 'processing');
-    emitProgress(document.id, 'started', 'Starting document processing...', 0);
+    await emitProgress(document.id, 'started', 'Starting document processing...', 0);
 
     // Parse the document
     console.log(`[ProcessorV2] Parsing ${document.filename} with mode: ${opts.mode}`);
-    emitProgress(document.id, 'parsing', 'Parsing PDF...', 10);
+    await emitProgress(document.id, 'parsing', 'Parsing PDF...', 10);
 
     const parseResult = await parseDocument(fileBuffer, {
       mode: opts.mode!,
@@ -88,7 +108,7 @@ export async function processDocumentV2(
 
     // Chunk with bounding boxes
     console.log(`[ProcessorV2] Chunking document with strategy: ${opts.chunkStrategy}`);
-    emitProgress(document.id, 'chunking', 'Creating chunks...', 30);
+    await emitProgress(document.id, 'chunking', 'Creating chunks...', 30);
 
     const chunks = chunkWithBbox(parseResult, {
       strategy: opts.chunkStrategy,
@@ -107,7 +127,7 @@ export async function processDocumentV2(
 
     // Generate embeddings
     console.log(`[ProcessorV2] Generating embeddings`);
-    emitProgress(document.id, 'embedding', 'Generating embeddings...', 40);
+    await emitProgress(document.id, 'embedding', 'Generating embeddings...', 40);
 
     const chunkTexts = chunks.map(c => c.content);
     const embeddings = await embedLargeBatch(chunkTexts, (completed, total) => {
@@ -159,7 +179,7 @@ export async function processDocumentV2(
 
     // Insert chunks
     console.log(`[ProcessorV2] Inserting chunks into database`);
-    emitProgress(document.id, 'storing', 'Saving to database...', 95);
+    await emitProgress(document.id, 'storing', 'Saving to database...', 95);
     await insertChunks(chunkRecords);
 
     // Update document status with parse info

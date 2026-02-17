@@ -26,22 +26,20 @@ const INITIAL_PROGRESS: DocumentProgress = {
   isError: false,
 };
 
+const POLL_INTERVAL_MS = 1500;
+
 export function useDocumentProgress(
   documentId: string | null,
   options: UseDocumentProgressOptions = {}
 ): DocumentProgress {
   const { enabled = true, onComplete, onError } = options;
   const [progress, setProgress] = useState<DocumentProgress>(INITIAL_PROGRESS);
-  const eventSourceRef = useRef<EventSource | null>(null);
-  const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const reconnectAttemptsRef = useRef(0);
+  const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const isTerminalRef = useRef(false);
 
-  // Store callbacks in refs to avoid dependency issues
   const onCompleteRef = useRef(onComplete);
   const onErrorRef = useRef(onError);
 
-  // Update refs in a separate effect
   useEffect(() => {
     onCompleteRef.current = onComplete;
     onErrorRef.current = onError;
@@ -54,73 +52,88 @@ export function useDocumentProgress(
       return;
     }
 
-    const connect = () => {
+    const poll = async () => {
       if (isTerminalRef.current) return;
 
-      // Clean up existing connection
-      if (eventSourceRef.current) {
-        eventSourceRef.current.close();
-      }
+      try {
+        const res = await fetch(`/api/documents/${documentId}`);
+        if (!res.ok) return;
 
-      const eventSource = new EventSource(`/api/documents/${documentId}/progress`);
-      eventSourceRef.current = eventSource;
+        const { document } = await res.json();
+        if (!document) return;
 
-      eventSource.onmessage = (event) => {
-        try {
-          const data: ProcessingEvent = JSON.parse(event.data);
-          reconnectAttemptsRef.current = 0; // Reset on successful message
-
-          const isComplete = data.type === 'complete';
-          const isError = data.type === 'error';
-
+        // Terminal: indexed
+        if (document.status === 'indexed') {
+          const details = {
+            pageCount: document.page_count,
+            chunkCount: document.chunk_count,
+          };
           setProgress({
-            status: data.type,
-            message: data.message,
-            progress: data.progress ?? 0,
-            details: data.details,
-            isComplete,
-            isError,
+            status: 'complete',
+            message: 'Ready',
+            progress: 100,
+            details,
+            isComplete: true,
+            isError: false,
           });
-
-          if (isComplete) {
-            isTerminalRef.current = true;
-            onCompleteRef.current?.(data.details);
-            eventSource.close();
-          } else if (isError) {
-            isTerminalRef.current = true;
-            onErrorRef.current?.(data.details?.error ?? 'Unknown error');
-            eventSource.close();
-          }
-        } catch (err) {
-          console.error('[useDocumentProgress] Failed to parse event:', err);
+          isTerminalRef.current = true;
+          onCompleteRef.current?.(details);
+          if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+          return;
         }
-      };
 
-      eventSource.onerror = () => {
-        eventSource.close();
-
-        // Attempt reconnection with exponential backoff (max 5 attempts)
-        if (reconnectAttemptsRef.current < 5 && !isTerminalRef.current) {
-          const delay = Math.min(1000 * Math.pow(2, reconnectAttemptsRef.current), 10000);
-          reconnectAttemptsRef.current++;
-
-          reconnectTimeoutRef.current = setTimeout(() => {
-            connect();
-          }, delay);
+        // Terminal: failed
+        if (document.status === 'failed') {
+          const errorMsg = document.error_message || 'Processing failed';
+          setProgress({
+            status: 'error',
+            message: `Failed: ${errorMsg}`,
+            progress: 0,
+            details: { error: errorMsg },
+            isComplete: false,
+            isError: true,
+          });
+          isTerminalRef.current = true;
+          onErrorRef.current?.(errorMsg);
+          if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+          return;
         }
-      };
+
+        // In-progress: read processing step from metadata
+        const step = document.metadata?.processing_step;
+        if (step) {
+          setProgress({
+            status: step.type as ProcessingEventType,
+            message: step.message,
+            progress: step.progress ?? 0,
+            details: step.details,
+            isComplete: false,
+            isError: false,
+          });
+        } else if (document.status === 'processing') {
+          setProgress({
+            status: 'started',
+            message: 'Processing...',
+            progress: 5,
+            isComplete: false,
+            isError: false,
+          });
+        }
+      } catch (err) {
+        console.error('[useDocumentProgress] Poll error:', err);
+      }
     };
 
-    connect();
+    // Initial poll immediately
+    poll();
+
+    // Then poll on interval
+    pollIntervalRef.current = setInterval(poll, POLL_INTERVAL_MS);
 
     return () => {
-      if (eventSourceRef.current) {
-        eventSourceRef.current.close();
-        eventSourceRef.current = null;
-      }
-      if (reconnectTimeoutRef.current) {
-        clearTimeout(reconnectTimeoutRef.current);
-        reconnectTimeoutRef.current = null;
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+        pollIntervalRef.current = null;
       }
     };
   }, [documentId, enabled]);
