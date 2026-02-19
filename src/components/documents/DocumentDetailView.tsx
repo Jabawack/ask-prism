@@ -106,10 +106,10 @@ export function DocumentDetailView({ document, onClose }: DocumentDetailViewProp
       <div className="flex items-center gap-4 px-4 py-2 border-b bg-white shrink-0">
         <button
           onClick={onClose}
-          className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors"
+          className="p-2 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
           title="Back to documents"
         >
-          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <svg className="w-5 h-5 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
           </svg>
         </button>
